@@ -59,6 +59,29 @@ def get_user_dir(username):
     os.makedirs(path, exist_ok=True)
     return path
 
+def handle_shared_clients(username,filename,last_sync):
+    print ("handle_sharefile_changes",username,filename)
+    changes={}
+    if check_membership_sharefiles(username):
+        sharefile=get_sharefiles(username)
+        print ("sharefile",sharefile)
+        if filename in sharefile:
+            clients_to_add_file=sharefile[filename]
+            changes[filename]=clients_to_add_file
+    else:
+        for client,shared_files in sharefiles.items():
+            
+            print ("for loop of handle clients",client,sharefiles)
+            # print ('sharefiles',sharefiles)
+            if filename in shared_files:
+                print ('filename in sharedfiles')
+                clients_to_add_file= shared_files[filename]
+                clients_to_add_file.append(client)
+                clients_to_add_file.remove(username)
+                changes[filename]=clients_to_add_file
+    print ("changes in shared files due to modificiation in sharedfiles",changes)
+    shared_file_add(changes,username,last_sync) 
+
 def add_file(client_dir, filename, data,modified_date=None):
     path = os.path.join(client_dir, filename)
     with open(path, 'wb') as file:
@@ -326,9 +349,8 @@ def load_configuration_files(username):
     # print (sharefiles,selectfiles)
     print ('configuration files loaded successfully')
         
-def delete_from_collaborators(msg,username):
+def delete_from_collaborators(filename,username):
     sharefile=get_sharefiles(username)
-    filename=msg['filename']
     if filename in sharefile:
         # shared_file_delete(changes,last_sync_str):
         changes={}
@@ -341,6 +363,8 @@ def handle_client(conn,junk):
     while True:
         if check_active()==False:
             break
+        # print ("username",username)
+        # print ("sharefiles",sharefiles)
 
         # print ("waiting for client message")
         msg = get_message(conn)
@@ -351,30 +375,27 @@ def handle_client(conn,junk):
             if msg['filename']=='Selectfile.dropbin':
                 handle_selectfile(msg,username)
             add_file(client_dir, msg['filename'], msg['data'],msg['modified_date'])
-            
+            handle_shared_clients(username,msg['filename'],msg['last_sync'])
         elif msg['type'] == 'file_delete':
             print('file deleted ', os.path.join(client_dir, msg['filename']))
             delete_file(client_dir, msg['filename'])
-            delete_from_collaborators(msg,username)
+            delete_from_collaborators(msg['filename'],username)
         elif msg['type'] == 'username':
             print ('user connecting: ', msg['username'])
             client_dir=get_user_dir(msg['username'])
             username=msg['username']
             load_configuration_files(username)
         elif msg['type'] == 'get_file_list':
-            # print('Getting file list at server')
             send_file_list(conn,client_dir)
         elif msg['type'] == 'download_from_server':
             print ('sending file to client: ',msg['filename'])
             send_file(conn,os.path.join(client_dir,msg['filename']))
         elif msg['type'] == 'last_sync':
-            # print('updating last sync')
             store_last_sync(username,msg['last_sync'])
             if not sharefile_changes_queue.empty():
                 print ('Queue: ',sharefile_changes_queue)
                 shared_file_add(sharefile_changes_queue.get(),username,msg['last_sync'])
         elif msg['type'] == 'get_last_sync':
-            # print ('sending last sync to client')
             send_last_sync(conn,username)
 
     print ("Client disconnected or server shutting down")
