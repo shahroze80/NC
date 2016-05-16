@@ -290,6 +290,7 @@ def handle_selectfile_changes(changes,sharefile,username,last_sync_str):
             changes_sharefile['file_add']={k:v for k,v in sharefile.items() if k in files_to_add_in_shared_users}
 
     if 'file_delete' in changes:
+        print ("file delete was found in changes from selectfile")
         files=changes['file_delete']
         files_to_delete_in_shared_users=[]
         for filename in files:
